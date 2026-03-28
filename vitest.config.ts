@@ -9,6 +9,7 @@ export default defineConfig({
       provider: "v8",
       include: [
         "src/api/**",
+        "src/api/mappers/**",
         "src/tools/**",
         "src/utils/**",
         "src/auth-provider.ts",

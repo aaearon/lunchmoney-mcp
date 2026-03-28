@@ -10,6 +10,8 @@ The definitive MCP server for [Lunch Money](https://lunchmoney.app) -- manage yo
 
 37 tools covering every Lunch Money API endpoint. Runs locally via stdio or remotely over HTTP with OAuth 2.1. Credentials never touch disk in plain text.
 
+**API migration in progress**: Most operations now use the Lunch Money v2 API (`api.lunchmoney.dev/v2`). Budget create/delete and recurring item writes remain on v1 until v2 supports them. MCP tool names and response shapes are unchanged.
+
 ## Quick Start
 
 ```bash

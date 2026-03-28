@@ -3,11 +3,14 @@
  *
  * Each domain method routes to v1 or v2 and applies any necessary
  * mapping so that callers always receive MCP-compatible types.
- * Initially all methods delegate to v1; they are switched to v2
- * domain-by-domain during the migration.
+ *
+ * v2 domains: user, tags, plaid, assets (manual_accounts), categories,
+ *             transactions
+ * Mixed v1+v2: budgets (GET/PUT on v2, POST/DELETE on v1),
+ *              recurring (GET on v2, create/update/delete on v1)
  */
 import type { HttpClient } from "./http-client.js";
-import type { V2User, ManualAccount, ManualAccountsResponse, V2Category, V2CategoriesResponse, V2RecurringItem, V2RecurringItemsResponse } from "../types/v2.js";
+import type { V2User, ManualAccount, ManualAccountsResponse, V2Category, V2CategoriesResponse, V2RecurringItemsResponse } from "../types/v2.js";
 import { mapManualAccountToAsset, mapAssetRequestToManualAccountRequest } from "./mappers/assets.js";
 import { mapV2CategoryToCategory, mapCategoryGroupRequestToV2, mapAddToGroupRequestToV2Update } from "./mappers/categories.js";
 import { mapV2StatusToV1, mapV1StatusToV2, mapV1FilterParamsToV2 } from "./mappers/transactions.js";
@@ -27,7 +30,6 @@ import type {
   BudgetsResponse,
   Asset,
   AssetsResponse,
-  PlaidAccount,
   PlaidAccountsResponse,
 } from "../types/index.js";
 

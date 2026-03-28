@@ -22,14 +22,24 @@ This is an MCP (Model Context Protocol) server for the Lunch Money personal fina
 ### Request Flow
 
 1. **CLI** (`src/cli.ts`) -- parses args, resolves transport mode, wires up auth provider and session store, calls `createServer()`/`startServer()`.
-2. **Server** (`src/server.ts`) -- creates a `FastMCP` instance, registers all 37 tools. Each tool call resolves the API token from `CredentialStore`, instantiates `LunchMoneyClient`, and delegates to the API client.
-3. **API Client** (`src/api/client.ts`) -- thin HTTP wrapper over `https://dev.lunchmoney.app/v1`. Provides `get`, `post`, `put`, `delete` methods with typed responses.
-4. **Credential Store** (`src/credential-store.ts`) -- tries OS keychain via `keytar` first, falls back to `LUNCH_MONEY_API_TOKEN` env var.
-5. **Session Store** (`src/session-store.ts`) -- encrypted file-based OAuth session storage (AES-256-GCM), encryption key in keychain.
+2. **Server** (`src/server.ts`) -- creates a `FastMCP` instance, builds v1 + v2 HTTP clients and the API facade, registers all 37 tools.
+3. **API Facade** (`src/api/facade.ts`) -- single object with domain-namespaced methods (`api.transactions.list()`, `api.categories.create()`, etc.). Each method routes to v1 or v2 and applies mappers. This is where all versioning logic lives.
+4. **HTTP Client** (`src/api/http-client.ts`) -- shared `HttpClient` class parameterized by `{ baseUrl, accessToken, parseError }`. Two instances: v1 (`dev.lunchmoney.app/v1`) and v2 (`api.lunchmoney.dev/v2`).
+5. **Mappers** (`src/api/mappers/`) -- pure functions that translate between v2 wire formats and MCP-facing types. Only for domains where shapes diverge (assets, categories, transactions, recurring).
+6. **Credential Store** (`src/credential-store.ts`) -- tries OS keychain via `keytar` first, falls back to `LUNCH_MONEY_API_TOKEN` env var.
+7. **Session Store** (`src/session-store.ts`) -- encrypted file-based OAuth session storage (AES-256-GCM), encryption key in keychain.
+
+### API Version Routing
+
+| Domain | v2 | v1 holdouts |
+|--------|-----|-------------|
+| User, Tags, Plaid, Assets, Categories, Transactions | All operations | None |
+| Budgets | GET, PUT | POST, DELETE |
+| Recurring Items | GET | Create, Update, Delete |
 
 ### Tool Modules
 
-Each file in `src/tools/` registers tools for one Lunch Money API domain (transactions, categories, tags, budgets, recurring, assets, plaid, user). Tools use Zod schemas from `src/schemas/` for input validation and types from `src/types/`.
+Each file in `src/tools/` registers tools for one Lunch Money API domain. Tools receive the API facade (`api: LunchMoneyApi`) and call domain methods. Tools do not know about API versions. Zod schemas from `src/schemas/` validate input; types from `src/types/` define the MCP-facing contract.
 
 ### Auth Providers
 
@@ -38,7 +48,7 @@ Each file in `src/tools/` registers tools for one Lunch Money API domain (transa
 ## Testing Conventions
 
 - Tests live in `tests/` mirroring `src/` structure.
-- Mock `LunchMoneyClient` methods, not HTTP requests.
+- Tool tests mock the API facade (`createMockApi()`) not HTTP requests. Mapper tests use pure function assertions.
 - Use `formatErrorForMCP()` from `src/utils/errors.ts` for error handling in tools.
 - Every new module must have tests. Coverage must stay above 90%.
 

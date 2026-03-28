@@ -7,10 +7,11 @@
  * domain-by-domain during the migration.
  */
 import type { HttpClient } from "./http-client.js";
-import type { V2User, ManualAccount, ManualAccountsResponse, V2Category, V2CategoriesResponse } from "../types/v2.js";
+import type { V2User, ManualAccount, ManualAccountsResponse, V2Category, V2CategoriesResponse, V2RecurringItem, V2RecurringItemsResponse } from "../types/v2.js";
 import { mapManualAccountToAsset, mapAssetRequestToManualAccountRequest } from "./mappers/assets.js";
 import { mapV2CategoryToCategory, mapCategoryGroupRequestToV2, mapAddToGroupRequestToV2Update } from "./mappers/categories.js";
 import { mapV2StatusToV1, mapV1StatusToV2, mapV1FilterParamsToV2 } from "./mappers/transactions.js";
+import { mapV2RecurringItemToV1 } from "./mappers/recurring.js";
 import type {
   User,
   Category,
@@ -185,10 +186,13 @@ export function createApiFacade(v1: HttpClient, v2: HttpClient): LunchMoneyApi {
       unsplit: (data) => v2.post("/transactions/unsplit", data),
     },
     recurring: {
-      list: () => v1.get<RecurringItemsResponse>("/recurring_expenses"),
-      create: (data) => v1.post<{ recurring_expense: RecurringItem }>("/recurring_expenses", data),
-      update: (id, data) => v1.put<{ recurring_expense: RecurringItem }>(`/recurring_expenses/${id}`, data),
-      delete: (id) => v1.delete(`/recurring_expenses/${id}`),
+      list: async () => {
+        const response = await v2.get<V2RecurringItemsResponse>("/recurring_items");
+        return { recurring_items: response.recurring_items.map(mapV2RecurringItemToV1) };
+      },
+      create: (data) => v1.post<{ recurring_expense: RecurringItem }>("/recurring_expenses", data),     // v1: no POST in v2
+      update: (id, data) => v1.put<{ recurring_expense: RecurringItem }>(`/recurring_expenses/${id}`, data), // v1: no PUT in v2
+      delete: (id) => v1.delete(`/recurring_expenses/${id}`),                                             // v1: no DELETE in v2
     },
     budgets: {
       list: () => v2.get<BudgetsResponse>("/budgets"),

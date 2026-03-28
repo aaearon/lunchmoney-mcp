@@ -10,11 +10,12 @@
  *              recurring (GET on v2, create/update/delete on v1)
  */
 import type { HttpClient } from "./http-client.js";
-import type { V2User, ManualAccount, ManualAccountsResponse, V2Category, V2CategoriesResponse, V2RecurringItemsResponse } from "../types/v2.js";
+import type { V2User, V2Tag, V2TagsResponse, V2Transaction, V2TransactionsResponse, ManualAccount, ManualAccountsResponse, V2Category, V2CategoriesResponse, V2RecurringItemsResponse } from "../types/v2.js";
 import { mapManualAccountToAsset, mapAssetRequestToManualAccountRequest } from "./mappers/assets.js";
-import { mapV2CategoryToCategory, mapCategoryGroupRequestToV2, mapAddToGroupRequestToV2Update } from "./mappers/categories.js";
-import { mapV2StatusToV1, mapV1StatusToV2, mapV1FilterParamsToV2 } from "./mappers/transactions.js";
+import { mapV2CategoryToCategory, extractCategoryGroups, mapCategoryRequestToV2, mapCategoryGroupRequestToV2, mapAddToGroupRequestToV2Update } from "./mappers/categories.js";
+import { mapV2TransactionToMCP, mapMCPRequestToV2, mapV1FilterParamsToV2, mapV1StatusToV2 } from "./mappers/transactions.js";
 import { mapV2RecurringItemToV1 } from "./mappers/recurring.js";
+import { mapV2TagToTag } from "./mappers/tags.js";
 import type {
   User,
   Category,
@@ -108,18 +109,23 @@ export function createApiFacade(v1: HttpClient, v2: HttpClient): LunchMoneyApi {
     categories: {
       list: async () => {
         const response = await v2.get<V2CategoriesResponse>("/categories");
-        return { categories: response.categories.map(mapV2CategoryToCategory) };
+        return {
+          categories: response.categories.map(mapV2CategoryToCategory),
+          category_groups: extractCategoryGroups(response.categories),
+        };
       },
       get: async (id) => {
         const v2Cat = await v2.get<V2Category>(`/categories/${id}`);
         return mapV2CategoryToCategory(v2Cat);
       },
       create: async (data) => {
-        const v2Cat = await v2.post<V2Category>("/categories", data);
+        const body = mapCategoryRequestToV2(data);
+        const v2Cat = await v2.post<V2Category>("/categories", body);
         return { category: mapV2CategoryToCategory(v2Cat) };
       },
       update: async (id, data) => {
-        const v2Cat = await v2.put<V2Category>(`/categories/${id}`, data);
+        const body = mapCategoryRequestToV2(data);
+        const v2Cat = await v2.put<V2Category>(`/categories/${id}`, body);
         return { category: mapV2CategoryToCategory(v2Cat) };
       },
       delete: (id) => v2.delete(`/categories/${id}`),
@@ -129,61 +135,66 @@ export function createApiFacade(v1: HttpClient, v2: HttpClient): LunchMoneyApi {
         return { category_group: { id: v2Cat.id, name: v2Cat.name, created_at: v2Cat.created_at } };
       },
       addToGroup: async (groupId, data) => {
-        const body = mapAddToGroupRequestToV2Update(data);
+        // v2 PUT replaces children, so fetch existing first to merge
+        const existing = await v2.get<V2Category>(`/categories/${groupId}`);
+        const existingChildIds = existing.children?.map((c) => c.id) ?? [];
+        const body = mapAddToGroupRequestToV2Update(data, existingChildIds);
         return v2.put(`/categories/${groupId}`, body);
       },
     },
     tags: {
-      list: () => v2.get<TagsResponse>("/tags"),
-      create: (data) => v2.post<{ tag: Tag }>("/tags", data),
-      update: (id, data) => v2.put<{ tag: Tag }>(`/tags/${id}`, data),
+      list: async () => {
+        const response = await v2.get<V2TagsResponse>("/tags");
+        return { tags: response.tags.map(mapV2TagToTag) };
+      },
+      create: async (data) => {
+        const v2Tag = await v2.post<V2Tag>("/tags", data);
+        return { tag: mapV2TagToTag(v2Tag) };
+      },
+      update: async (id, data) => {
+        const v2Tag = await v2.put<V2Tag>(`/tags/${id}`, data);
+        return { tag: mapV2TagToTag(v2Tag) };
+      },
       delete: (id) => v2.delete(`/tags/${id}`),
     },
     transactions: {
       list: async (params) => {
         const v2Params = params ? mapV1FilterParamsToV2(params) : undefined;
-        const response = await v2.get<TransactionsResponse>("/transactions", v2Params);
-        // Map status values back to v1 for MCP compat
-        response.transactions = response.transactions.map((t) => ({
-          ...t,
-          status: t.status ? mapV2StatusToV1(t.status) as Transaction["status"] : t.status,
-        }));
-        return response;
+        const response = await v2.get<V2TransactionsResponse>("/transactions", v2Params);
+        return { transactions: response.transactions.map(mapV2TransactionToMCP) };
       },
       get: async (id) => {
-        const t = await v2.get<Transaction>(`/transactions/${id}`);
-        return { ...t, status: t.status ? mapV2StatusToV1(t.status) as Transaction["status"] : t.status };
+        const t = await v2.get<V2Transaction>(`/transactions/${id}`);
+        return mapV2TransactionToMCP(t);
       },
       create: async (data) => {
-        // Map status in request if present
-        const body = { ...data };
-        if (typeof body.status === "string") {
-          body.status = mapV1StatusToV2(body.status as string) ?? body.status;
-        }
-        const result = await v2.post<{ transaction: Transaction }>("/transactions", body);
-        if (result.transaction?.status) {
-          result.transaction.status = mapV2StatusToV1(result.transaction.status) as Transaction["status"];
-        }
-        return result;
+        const body = mapMCPRequestToV2(data);
+        const result = await v2.post<{ transactions: V2Transaction[] }>("/transactions", { transactions: [body] });
+        const v2Tx = result.transactions?.[0];
+        return { transaction: v2Tx ? mapV2TransactionToMCP(v2Tx) : (body as unknown as Transaction) };
       },
       update: async (id, data) => {
-        const body = { ...data };
-        if (typeof body.status === "string") {
-          body.status = mapV1StatusToV2(body.status as string) ?? body.status;
-        }
-        const result = await v2.put<{ transaction: Transaction }>(`/transactions/${id}`, body);
-        if (result.transaction?.status) {
-          result.transaction.status = mapV2StatusToV1(result.transaction.status) as Transaction["status"];
-        }
-        return result;
+        const body = mapMCPRequestToV2(data);
+        const v2Tx = await v2.put<V2Transaction>(`/transactions/${id}`, body);
+        return { transaction: mapV2TransactionToMCP(v2Tx) };
       },
       delete: (id) => v2.delete(`/transactions/${id}`),
-      bulkUpdate: (data) => v2.put<{ updated: number }>("/transactions", data),
-      getGroup: async (transactionId) => {
-        const t = await v2.get<Transaction>(`/transactions/group/${transactionId}`);
-        return { ...t, status: t.status ? mapV2StatusToV1(t.status) as Transaction["status"] : t.status };
+      bulkUpdate: (data) => {
+        const body = { ...data };
+        if (typeof body.status === "string") {
+          const mapped = mapV1StatusToV2(body.status as string);
+          if (mapped) body.status = mapped;
+        }
+        return v2.put<{ updated: number }>("/transactions", body);
       },
-      createGroup: (data) => v2.post<Transaction>("/transactions/group", data),
+      getGroup: async (transactionId) => {
+        const t = await v2.get<V2Transaction>(`/transactions/group/${transactionId}`);
+        return mapV2TransactionToMCP(t);
+      },
+      createGroup: async (data) => {
+        const t = await v2.post<V2Transaction>("/transactions/group", data);
+        return mapV2TransactionToMCP(t);
+      },
       deleteGroup: (id) => v2.delete(`/transactions/group/${id}`),
       unsplit: (data) => v2.post("/transactions/unsplit", data),
     },

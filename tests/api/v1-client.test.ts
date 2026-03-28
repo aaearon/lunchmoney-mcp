@@ -7,8 +7,13 @@ const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
 describe("V1 Client", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", mockFetch);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   describe("createV1Client", () => {

@@ -74,10 +74,13 @@ describe("Server", () => {
   describe("executeConfigureToken", () => {
     it("validates and stores a valid token", async () => {
       const mockUser = {
-        id: 1,
-        name: "Test User",
-        email: "test@example.com",
-        currency: "usd",
+        user_id: 1,
+        user_name: "Test User",
+        user_email: "test@example.com",
+        primary_currency: "usd",
+        account_id: 1,
+        budget_name: "Test",
+        api_key_label: null,
       };
       mockFetch.mockResolvedValue(createJsonResponse(mockUser));
       mockKeytar.setPassword.mockResolvedValue(undefined);
@@ -96,13 +99,17 @@ describe("Server", () => {
     });
 
     it("returns error for invalid token (API rejects)", async () => {
+      const v2ErrorBody = {
+        message: "Invalid API key",
+        errors: [{ errMsg: "Unauthorized" }],
+      };
       const errorResponse = {
         ok: false,
         status: 401,
         statusText: "Unauthorized",
         headers: new Headers({ "content-type": "application/json" }),
-        json: vi.fn().mockResolvedValue({ error: "Invalid API key" }),
-        text: vi.fn().mockResolvedValue('{"error":"Invalid API key"}'),
+        json: vi.fn().mockResolvedValue(v2ErrorBody),
+        text: vi.fn().mockResolvedValue(JSON.stringify(v2ErrorBody)),
       };
       mockFetch.mockResolvedValue(errorResponse);
 
@@ -127,10 +134,13 @@ describe("Server", () => {
 
     it("returns error when setApiToken fails (keychain unavailable)", async () => {
       const mockUser = {
-        id: 1,
-        name: "Test User",
-        email: "test@example.com",
-        currency: "usd",
+        user_id: 1,
+        user_name: "Test User",
+        user_email: "test@example.com",
+        primary_currency: "usd",
+        account_id: 1,
+        budget_name: "Test",
+        api_key_label: null,
       };
       mockFetch.mockResolvedValue(createJsonResponse(mockUser));
       mockKeytar.setPassword.mockRejectedValue(new Error("Keychain locked"));

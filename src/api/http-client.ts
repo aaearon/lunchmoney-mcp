@@ -45,20 +45,23 @@ export class HttpClient {
 
       if (!response.ok) {
         let errorMessage = `API request failed: ${response.statusText}`;
-        try {
-          const errorData = await response.json();
-          const parsed = this.parseError(errorData);
-          if (parsed) {
-            errorMessage = parsed;
+        const responseText = await response.text().catch(() => undefined);
+        if (responseText) {
+          try {
+            const errorData = JSON.parse(responseText);
+            const parsed = this.parseError(errorData);
+            if (parsed) {
+              errorMessage = parsed;
+            }
+          } catch {
+            // If response is not JSON, use status text
           }
-        } catch {
-          // If response is not JSON, use status text
         }
 
         throw new LunchMoneyAPIError(
           errorMessage,
           response.status,
-          await response.text().catch(() => undefined)
+          responseText
         );
       }
 

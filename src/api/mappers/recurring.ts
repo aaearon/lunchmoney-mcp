@@ -28,11 +28,11 @@ export function mapV2RecurringItemToV1(v2: V2RecurringItem): RecurringItem {
 
   return {
     id: v2.id,
-    payee: criteria.payee ?? undefined,
+    payee: overrides?.payee ?? criteria.payee ?? undefined,
     amount: criteria.amount,
     currency: criteria.currency,
-    category_id: overrides.category_id,
-    notes: v2.description || undefined,
+    category_id: overrides?.category_id,
+    notes: overrides?.notes ?? v2.description ?? undefined,
     account_id: criteria.manual_account_id ?? undefined,
     frequency: toFrequencyString(criteria.granularity, criteria.quantity),
     start_date: criteria.start_date ?? undefined,

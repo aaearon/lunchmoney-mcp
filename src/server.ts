@@ -1,7 +1,6 @@
 import "dotenv/config";
 import { FastMCP, GoogleProvider, GitHubProvider, OAuthProvider } from "fastmcp";
 import { z } from "zod";
-import { LunchMoneyClient } from "./api/client.js";
 import { createV1Client } from "./api/v1-client.js";
 import { createV2Client } from "./api/v2-client.js";
 import { createApiFacade } from "./api/facade.js";
@@ -15,7 +14,7 @@ import { registerBudgetTools } from "./tools/budgets.js";
 import { registerAssetTools } from "./tools/assets.js";
 import { registerPlaidTools } from "./tools/plaid.js";
 import { formatErrorForMCP } from "./utils/errors.js";
-import type { User } from "./types/index.js";
+import type { V2User } from "./types/v2.js";
 
 /** Union type for supported auth provider instances */
 export type AuthProviderInstance = InstanceType<typeof GoogleProvider> | InstanceType<typeof GitHubProvider> | InstanceType<typeof OAuthProvider>;
@@ -39,16 +38,16 @@ export async function executeConfigureToken(
   credentialStore: CredentialStore
 ): Promise<string> {
   try {
-    // Validate the token by calling GET /me
-    const testClient = new LunchMoneyClient(args.token);
-    const user = await testClient.get<User>("/me");
+    // Validate the token by calling GET /me on v2 API
+    const testClient = createV2Client(args.token);
+    const user = await testClient.get<V2User>("/me");
 
     // Token is valid — store it
     await credentialStore.setApiToken(args.token);
 
-    return `Token validated and stored successfully! Welcome, ${user.name} (${user.email}). Restart the MCP server to use the new token.`;
+    return `Token validated and stored successfully! Welcome, ${user.user_name} (${user.user_email}). Restart the MCP server to use the new token.`;
   } catch (error) {
-    if (error instanceof Error && error.message === "Lunch Money API token is required") {
+    if (error instanceof Error && error.message === "Access token is required") {
       return "Error: Token cannot be empty.";
     }
     return `Failed to validate token: ${formatErrorForMCP(error)}. Please check your token and try again. Get a token at https://my.lunchmoney.app/developers`;

@@ -43,7 +43,7 @@ describe("Recurring item mappers", () => {
 
       expect(result).toEqual({
         id: 100,
-        payee: "Netflix",
+        payee: "Netflix Streaming",  // overrides.payee takes priority
         amount: "15.99",
         currency: "usd",
         category_id: 10,

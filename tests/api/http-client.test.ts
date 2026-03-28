@@ -56,8 +56,13 @@ describe("HttpClient", () => {
     });
   });
 
+  beforeEach(() => {
+    vi.stubGlobal("fetch", mockFetch);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   describe("constructor", () => {
@@ -208,7 +213,10 @@ describe("HttpClient", () => {
           message: "Invalid request",
           errors: [{ errMsg: "start_date is required" }],
         }),
-        text: vi.fn().mockResolvedValue("{}"),
+        text: vi.fn().mockResolvedValue(JSON.stringify({
+          message: "Invalid request",
+          errors: [{ errMsg: "start_date is required" }],
+        })),
       });
 
       await expect(v2Client.get("/transactions")).rejects.toThrow(

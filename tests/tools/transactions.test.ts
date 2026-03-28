@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerTransactionTools } from "../../src/tools/transactions.js";
-import { LunchMoneyClient } from "../../src/api/client.js";
 import { LunchMoneyAPIError } from "../../src/utils/errors.js";
 import type {
   TransactionsResponse,
@@ -24,17 +23,16 @@ function createMockServer() {
   };
 }
 
-function createMockClient() {
+function createMockApi() {
   return {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  } as unknown as LunchMoneyClient & {
-    get: ReturnType<typeof vi.fn>;
-    post: ReturnType<typeof vi.fn>;
-    put: ReturnType<typeof vi.fn>;
-    delete: ReturnType<typeof vi.fn>;
+    user: { get: vi.fn() },
+    categories: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), createGroup: vi.fn(), addToGroup: vi.fn() },
+    tags: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    transactions: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), bulkUpdate: vi.fn(), getGroup: vi.fn(), createGroup: vi.fn(), deleteGroup: vi.fn(), unsplit: vi.fn() },
+    recurring: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    budgets: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    assets: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    plaid: { list: vi.fn(), fetch: vi.fn() },
   };
 }
 
@@ -53,13 +51,13 @@ const sampleTransaction: Transaction = {
 
 describe("Transaction tools", () => {
   let mockServer: ReturnType<typeof createMockServer>;
-  let mockClient: ReturnType<typeof createMockClient>;
+  let mockApi: ReturnType<typeof createMockApi>;
   let tools: RegisteredTool[];
 
   beforeEach(() => {
     mockServer = createMockServer();
-    mockClient = createMockClient();
-    registerTransactionTools(mockServer as never, mockClient);
+    mockApi = createMockApi();
+    registerTransactionTools(mockServer as never, mockApi as never);
     tools = mockServer.tools;
   });
 
@@ -86,17 +84,17 @@ describe("Transaction tools", () => {
         transactions: [sampleTransaction],
       };
 
-      mockClient.get.mockResolvedValue(mockResponse);
+      mockApi.transactions.list.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "getTransactions")!;
       const result = await tool.execute({});
 
-      expect(mockClient.get).toHaveBeenCalledWith("/transactions", {});
+      expect(mockApi.transactions.list).toHaveBeenCalledWith({});
       expect(result).toBe(JSON.stringify(mockResponse, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.get.mockRejectedValue(
+      mockApi.transactions.list.mockRejectedValue(
         new LunchMoneyAPIError("Unauthorized", 401)
       );
 
@@ -112,17 +110,17 @@ describe("Transaction tools", () => {
   // ---------- getTransaction ----------
   describe("getTransaction", () => {
     it("returns JSON stringified single transaction on success", async () => {
-      mockClient.get.mockResolvedValue(sampleTransaction);
+      mockApi.transactions.get.mockResolvedValue(sampleTransaction);
 
       const tool = tools.find((t) => t.name === "getTransaction")!;
       const result = await tool.execute({ id: 1 });
 
-      expect(mockClient.get).toHaveBeenCalledWith("/transactions/1");
+      expect(mockApi.transactions.get).toHaveBeenCalledWith(1);
       expect(result).toBe(JSON.stringify(sampleTransaction, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.get.mockRejectedValue(
+      mockApi.transactions.get.mockRejectedValue(
         new LunchMoneyAPIError("Transaction not found", 404)
       );
 
@@ -139,7 +137,7 @@ describe("Transaction tools", () => {
   describe("createTransaction", () => {
     it("returns JSON stringified created transaction on success", async () => {
       const mockResponse = { transaction: sampleTransaction };
-      mockClient.post.mockResolvedValue(mockResponse);
+      mockApi.transactions.create.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "createTransaction")!;
       const args = {
@@ -150,12 +148,12 @@ describe("Transaction tools", () => {
       };
       const result = await tool.execute(args);
 
-      expect(mockClient.post).toHaveBeenCalledWith("/transactions", args);
+      expect(mockApi.transactions.create).toHaveBeenCalledWith(args);
       expect(result).toBe(JSON.stringify(mockResponse, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.post.mockRejectedValue(
+      mockApi.transactions.create.mockRejectedValue(
         new LunchMoneyAPIError("Validation error", 422)
       );
 
@@ -177,19 +175,19 @@ describe("Transaction tools", () => {
     it("returns JSON stringified updated transaction on success", async () => {
       const updatedTransaction = { ...sampleTransaction, payee: "Updated" };
       const mockResponse = { transaction: updatedTransaction };
-      mockClient.put.mockResolvedValue(mockResponse);
+      mockApi.transactions.update.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "updateTransaction")!;
       const result = await tool.execute({ id: 1, payee: "Updated" });
 
-      expect(mockClient.put).toHaveBeenCalledWith("/transactions/1", {
+      expect(mockApi.transactions.update).toHaveBeenCalledWith(1, {
         payee: "Updated",
       });
       expect(result).toBe(JSON.stringify(mockResponse, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.put.mockRejectedValue(
+      mockApi.transactions.update.mockRejectedValue(
         new LunchMoneyAPIError("Not found", 404)
       );
 
@@ -205,17 +203,17 @@ describe("Transaction tools", () => {
   // ---------- deleteTransaction ----------
   describe("deleteTransaction", () => {
     it("returns success message on delete", async () => {
-      mockClient.delete.mockResolvedValue(undefined);
+      mockApi.transactions.delete.mockResolvedValue(undefined);
 
       const tool = tools.find((t) => t.name === "deleteTransaction")!;
       const result = await tool.execute({ id: 1 });
 
-      expect(mockClient.delete).toHaveBeenCalledWith("/transactions/1");
+      expect(mockApi.transactions.delete).toHaveBeenCalledWith(1);
       expect(result).toBe("Transaction 1 deleted successfully");
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.delete.mockRejectedValue(
+      mockApi.transactions.delete.mockRejectedValue(
         new LunchMoneyAPIError("Not found", 404)
       );
 
@@ -232,7 +230,7 @@ describe("Transaction tools", () => {
   describe("bulkUpdateTransactions", () => {
     it("returns JSON stringified update count on success", async () => {
       const mockResponse = { updated: 3 };
-      mockClient.post.mockResolvedValue(mockResponse);
+      mockApi.transactions.bulkUpdate.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "bulkUpdateTransactions")!;
       const args = {
@@ -241,12 +239,12 @@ describe("Transaction tools", () => {
       };
       const result = await tool.execute(args);
 
-      expect(mockClient.post).toHaveBeenCalledWith("/transactions/bulk", args);
+      expect(mockApi.transactions.bulkUpdate).toHaveBeenCalledWith(args);
       expect(result).toBe(JSON.stringify(mockResponse, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.post.mockRejectedValue(
+      mockApi.transactions.bulkUpdate.mockRejectedValue(
         new LunchMoneyAPIError("Server error", 500)
       );
 
@@ -273,17 +271,17 @@ describe("Transaction tools", () => {
           { ...sampleTransaction, id: 3, group_id: 1 },
         ],
       };
-      mockClient.get.mockResolvedValue(groupTransaction);
+      mockApi.transactions.getGroup.mockResolvedValue(groupTransaction);
 
       const tool = tools.find((t) => t.name === "getTransactionGroup")!;
       const result = await tool.execute({ id: 1 });
 
-      expect(mockClient.get).toHaveBeenCalledWith("/transactions/group", { transaction_id: 1 });
+      expect(mockApi.transactions.getGroup).toHaveBeenCalledWith(1);
       expect(result).toBe(JSON.stringify(groupTransaction, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.get.mockRejectedValue(
+      mockApi.transactions.getGroup.mockRejectedValue(
         new LunchMoneyAPIError("Group not found", 404)
       );
 
@@ -296,7 +294,7 @@ describe("Transaction tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.get.mockRejectedValue(new Error("Network failure"));
+      mockApi.transactions.getGroup.mockRejectedValue(new Error("Network failure"));
 
       const tool = tools.find((t) => t.name === "getTransactionGroup")!;
       const result = await tool.execute({ id: 1 });
@@ -305,7 +303,7 @@ describe("Transaction tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.get.mockRejectedValue("something unexpected");
+      mockApi.transactions.getGroup.mockRejectedValue("something unexpected");
 
       const tool = tools.find((t) => t.name === "getTransactionGroup")!;
       const result = await tool.execute({ id: 1 });
@@ -325,7 +323,7 @@ describe("Transaction tools", () => {
           { ...sampleTransaction, id: 3, group_id: 1 },
         ],
       };
-      mockClient.post.mockResolvedValue(groupTransaction);
+      mockApi.transactions.createGroup.mockResolvedValue(groupTransaction);
 
       const tool = tools.find((t) => t.name === "createTransactionGroup")!;
       const args = {
@@ -337,15 +335,12 @@ describe("Transaction tools", () => {
       };
       const result = await tool.execute(args);
 
-      expect(mockClient.post).toHaveBeenCalledWith(
-        "/transactions/group",
-        args
-      );
+      expect(mockApi.transactions.createGroup).toHaveBeenCalledWith(args);
       expect(result).toBe(JSON.stringify(groupTransaction, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.post.mockRejectedValue(
+      mockApi.transactions.createGroup.mockRejectedValue(
         new LunchMoneyAPIError("Validation error", 422)
       );
 
@@ -362,7 +357,7 @@ describe("Transaction tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.post.mockRejectedValue(new Error("Connection timeout"));
+      mockApi.transactions.createGroup.mockRejectedValue(new Error("Connection timeout"));
 
       const tool = tools.find((t) => t.name === "createTransactionGroup")!;
       const result = await tool.execute({
@@ -375,7 +370,7 @@ describe("Transaction tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.post.mockRejectedValue(42);
+      mockApi.transactions.createGroup.mockRejectedValue(42);
 
       const tool = tools.find((t) => t.name === "createTransactionGroup")!;
       const result = await tool.execute({
@@ -391,19 +386,17 @@ describe("Transaction tools", () => {
   // ---------- deleteTransactionGroup ----------
   describe("deleteTransactionGroup", () => {
     it("returns success message on delete", async () => {
-      mockClient.delete.mockResolvedValue(undefined);
+      mockApi.transactions.deleteGroup.mockResolvedValue(undefined);
 
       const tool = tools.find((t) => t.name === "deleteTransactionGroup")!;
       const result = await tool.execute({ id: 1 });
 
-      expect(mockClient.delete).toHaveBeenCalledWith(
-        "/transactions/group/1"
-      );
+      expect(mockApi.transactions.deleteGroup).toHaveBeenCalledWith(1);
       expect(result).toBe("Transaction group 1 deleted successfully");
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.delete.mockRejectedValue(
+      mockApi.transactions.deleteGroup.mockRejectedValue(
         new LunchMoneyAPIError("Group not found", 404)
       );
 
@@ -416,7 +409,7 @@ describe("Transaction tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.delete.mockRejectedValue(new Error("Network failure"));
+      mockApi.transactions.deleteGroup.mockRejectedValue(new Error("Network failure"));
 
       const tool = tools.find((t) => t.name === "deleteTransactionGroup")!;
       const result = await tool.execute({ id: 1 });
@@ -425,7 +418,7 @@ describe("Transaction tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.delete.mockRejectedValue("something unexpected");
+      mockApi.transactions.deleteGroup.mockRejectedValue("something unexpected");
 
       const tool = tools.find((t) => t.name === "deleteTransactionGroup")!;
       const result = await tool.execute({ id: 1 });
@@ -438,21 +431,18 @@ describe("Transaction tools", () => {
   describe("unsplitTransactions", () => {
     it("returns JSON stringified response on success", async () => {
       const mockResponse = { parent_ids: [1], transactions: [sampleTransaction] };
-      mockClient.post.mockResolvedValue(mockResponse);
+      mockApi.transactions.unsplit.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "unsplitTransactions")!;
       const args = { parent_ids: [1] };
       const result = await tool.execute(args);
 
-      expect(mockClient.post).toHaveBeenCalledWith(
-        "/transactions/unsplit",
-        args
-      );
+      expect(mockApi.transactions.unsplit).toHaveBeenCalledWith(args);
       expect(result).toBe(JSON.stringify(mockResponse, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.post.mockRejectedValue(
+      mockApi.transactions.unsplit.mockRejectedValue(
         new LunchMoneyAPIError("Cannot unsplit", 400)
       );
 
@@ -465,7 +455,7 @@ describe("Transaction tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.post.mockRejectedValue(new Error("Connection timeout"));
+      mockApi.transactions.unsplit.mockRejectedValue(new Error("Connection timeout"));
 
       const tool = tools.find((t) => t.name === "unsplitTransactions")!;
       const result = await tool.execute({ parent_ids: [1] });
@@ -474,7 +464,7 @@ describe("Transaction tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.post.mockRejectedValue(42);
+      mockApi.transactions.unsplit.mockRejectedValue(42);
 
       const tool = tools.find((t) => t.name === "unsplitTransactions")!;
       const result = await tool.execute({ parent_ids: [1] });

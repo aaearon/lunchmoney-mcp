@@ -1,6 +1,6 @@
 import { FastMCP } from "fastmcp";
 import { z } from "zod";
-import { LunchMoneyClient } from "../api/client.js";
+import type { LunchMoneyApi } from "../api/facade.js";
 import { formatErrorForMCP } from "../utils/errors.js";
 import {
   createCategorySchema,
@@ -9,19 +9,15 @@ import {
   addToGroupSchema,
   idSchema,
 } from "../schemas/index.js";
-import { CategoriesResponse, Category, CategoryGroup } from "../types/index.js";
 
-export function registerCategoryTools(
-  server: FastMCP,
-  client: LunchMoneyClient
-) {
+export function registerCategoryTools(server: FastMCP, api: LunchMoneyApi) {
   server.addTool({
     name: "getCategories",
     description: "List all categories including category groups and parent categories",
     parameters: z.object({}),
     execute: async () => {
       try {
-        const response = await client.get<CategoriesResponse>("/categories");
+        const response = await api.categories.list();
         return JSON.stringify(response, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -35,10 +31,7 @@ export function registerCategoryTools(
     parameters: createCategorySchema,
     execute: async (args: z.infer<typeof createCategorySchema>) => {
       try {
-        const category = await client.post<{ category: Category }>(
-          "/categories",
-          args
-        );
+        const category = await api.categories.create(args);
         return JSON.stringify(category, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -53,10 +46,7 @@ export function registerCategoryTools(
     execute: async (args: z.infer<typeof idSchema> & z.infer<typeof updateCategorySchema>) => {
       try {
         const { id, ...updateData } = args;
-        const category = await client.put<{ category: Category }>(
-          `/categories/${id}`,
-          updateData
-        );
+        const category = await api.categories.update(id, updateData);
         return JSON.stringify(category, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -70,7 +60,7 @@ export function registerCategoryTools(
     parameters: idSchema,
     execute: async (args: z.infer<typeof idSchema>) => {
       try {
-        await client.delete(`/categories/${args.id}`);
+        await api.categories.delete(args.id);
         return `Category ${args.id} deleted successfully`;
       } catch (error) {
         return formatErrorForMCP(error);
@@ -84,9 +74,7 @@ export function registerCategoryTools(
     parameters: idSchema,
     execute: async (args: z.infer<typeof idSchema>) => {
       try {
-        const category = await client.get<Category>(
-          `/categories/${args.id}`
-        );
+        const category = await api.categories.get(args.id);
         return JSON.stringify(category, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -100,10 +88,7 @@ export function registerCategoryTools(
     parameters: createCategoryGroupSchema,
     execute: async (args: z.infer<typeof createCategoryGroupSchema>) => {
       try {
-        const response = await client.post<{ category_group: CategoryGroup }>(
-          "/categories/group",
-          args
-        );
+        const response = await api.categories.createGroup(args);
         return JSON.stringify(response, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -117,10 +102,9 @@ export function registerCategoryTools(
     parameters: addToGroupSchema,
     execute: async (args: z.infer<typeof addToGroupSchema>) => {
       try {
-        const response = await client.post(
-          `/categories/group/${args.group_id}/add`,
-          { category_ids: args.category_ids }
-        );
+        const response = await api.categories.addToGroup(args.group_id, {
+          category_ids: args.category_ids,
+        });
         return JSON.stringify(response, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);

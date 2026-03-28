@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerTagTools } from "../../src/tools/tags.js";
-import { LunchMoneyClient } from "../../src/api/client.js";
 import { LunchMoneyAPIError } from "../../src/utils/errors.js";
 import type { TagsResponse, Tag } from "../../src/types/index.js";
 
@@ -21,29 +20,21 @@ function createMockServer() {
   };
 }
 
-function createMockClient() {
+function createMockApi() {
   return {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  } as unknown as LunchMoneyClient & {
-    get: ReturnType<typeof vi.fn>;
-    post: ReturnType<typeof vi.fn>;
-    put: ReturnType<typeof vi.fn>;
-    delete: ReturnType<typeof vi.fn>;
+    tags: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   };
 }
 
 describe("Tag tools", () => {
   let mockServer: ReturnType<typeof createMockServer>;
-  let mockClient: ReturnType<typeof createMockClient>;
+  let mockApi: ReturnType<typeof createMockApi>;
   let tools: RegisteredTool[];
 
   beforeEach(() => {
     mockServer = createMockServer();
-    mockClient = createMockClient();
-    registerTagTools(mockServer as never, mockClient);
+    mockApi = createMockApi();
+    registerTagTools(mockServer as never, mockApi as never);
     tools = mockServer.tools;
   });
 
@@ -66,17 +57,17 @@ describe("Tag tools", () => {
         ],
       };
 
-      mockClient.get.mockResolvedValue(mockResponse);
+      mockApi.tags.list.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "getTags")!;
       const result = await tool.execute({});
 
-      expect(mockClient.get).toHaveBeenCalledWith("/tags");
+      expect(mockApi.tags.list).toHaveBeenCalled();
       expect(result).toBe(JSON.stringify(mockResponse, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.get.mockRejectedValue(
+      mockApi.tags.list.mockRejectedValue(
         new LunchMoneyAPIError("Unauthorized", 401)
       );
 
@@ -89,7 +80,7 @@ describe("Tag tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.get.mockRejectedValue(new Error("Network failure"));
+      mockApi.tags.list.mockRejectedValue(new Error("Network failure"));
 
       const tool = tools.find((t) => t.name === "getTags")!;
       const result = await tool.execute({});
@@ -98,7 +89,7 @@ describe("Tag tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.get.mockRejectedValue("something unexpected");
+      mockApi.tags.list.mockRejectedValue("something unexpected");
 
       const tool = tools.find((t) => t.name === "getTags")!;
       const result = await tool.execute({});
@@ -113,17 +104,17 @@ describe("Tag tools", () => {
         tag: { id: 3, name: "utilities", created_at: "2024-03-01T00:00:00.000Z" },
       };
 
-      mockClient.post.mockResolvedValue(mockResponse);
+      mockApi.tags.create.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "createTag")!;
       const result = await tool.execute({ name: "utilities" });
 
-      expect(mockClient.post).toHaveBeenCalledWith("/tags", { name: "utilities" });
+      expect(mockApi.tags.create).toHaveBeenCalledWith({ name: "utilities" });
       expect(result).toBe(JSON.stringify(mockResponse, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.post.mockRejectedValue(
+      mockApi.tags.create.mockRejectedValue(
         new LunchMoneyAPIError("Bad Request", 400)
       );
 
@@ -136,7 +127,7 @@ describe("Tag tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.post.mockRejectedValue(new Error("Connection timeout"));
+      mockApi.tags.create.mockRejectedValue(new Error("Connection timeout"));
 
       const tool = tools.find((t) => t.name === "createTag")!;
       const result = await tool.execute({ name: "utilities" });
@@ -145,7 +136,7 @@ describe("Tag tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.post.mockRejectedValue(42);
+      mockApi.tags.create.mockRejectedValue(42);
 
       const tool = tools.find((t) => t.name === "createTag")!;
       const result = await tool.execute({ name: "utilities" });
@@ -160,17 +151,17 @@ describe("Tag tools", () => {
         tag: { id: 1, name: "food", created_at: "2024-01-01T00:00:00.000Z" },
       };
 
-      mockClient.put.mockResolvedValue(mockResponse);
+      mockApi.tags.update.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "updateTag")!;
       const result = await tool.execute({ id: 1, name: "food" });
 
-      expect(mockClient.put).toHaveBeenCalledWith("/tags/1", { name: "food" });
+      expect(mockApi.tags.update).toHaveBeenCalledWith(1, { name: "food" });
       expect(result).toBe(JSON.stringify(mockResponse, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.put.mockRejectedValue(
+      mockApi.tags.update.mockRejectedValue(
         new LunchMoneyAPIError("Not Found", 404)
       );
 
@@ -183,7 +174,7 @@ describe("Tag tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.put.mockRejectedValue(new Error("Server error"));
+      mockApi.tags.update.mockRejectedValue(new Error("Server error"));
 
       const tool = tools.find((t) => t.name === "updateTag")!;
       const result = await tool.execute({ id: 1, name: "food" });
@@ -192,7 +183,7 @@ describe("Tag tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.put.mockRejectedValue(undefined);
+      mockApi.tags.update.mockRejectedValue(undefined);
 
       const tool = tools.find((t) => t.name === "updateTag")!;
       const result = await tool.execute({ id: 1, name: "food" });
@@ -203,17 +194,17 @@ describe("Tag tools", () => {
 
   describe("deleteTag", () => {
     it("returns success message on delete", async () => {
-      mockClient.delete.mockResolvedValue(undefined);
+      mockApi.tags.delete.mockResolvedValue(undefined);
 
       const tool = tools.find((t) => t.name === "deleteTag")!;
       const result = await tool.execute({ id: 5 });
 
-      expect(mockClient.delete).toHaveBeenCalledWith("/tags/5");
+      expect(mockApi.tags.delete).toHaveBeenCalledWith(5);
       expect(result).toBe("Tag 5 deleted successfully");
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.delete.mockRejectedValue(
+      mockApi.tags.delete.mockRejectedValue(
         new LunchMoneyAPIError("Forbidden", 403)
       );
 
@@ -226,7 +217,7 @@ describe("Tag tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.delete.mockRejectedValue(new Error("Network issue"));
+      mockApi.tags.delete.mockRejectedValue(new Error("Network issue"));
 
       const tool = tools.find((t) => t.name === "deleteTag")!;
       const result = await tool.execute({ id: 5 });
@@ -235,7 +226,7 @@ describe("Tag tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.delete.mockRejectedValue(null);
+      mockApi.tags.delete.mockRejectedValue(null);
 
       const tool = tools.find((t) => t.name === "deleteTag")!;
       const result = await tool.execute({ id: 5 });

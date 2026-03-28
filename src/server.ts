@@ -2,6 +2,9 @@ import "dotenv/config";
 import { FastMCP, GoogleProvider, GitHubProvider, OAuthProvider } from "fastmcp";
 import { z } from "zod";
 import { LunchMoneyClient } from "./api/client.js";
+import { createV1Client } from "./api/v1-client.js";
+import { createV2Client } from "./api/v2-client.js";
+import { createApiFacade } from "./api/facade.js";
 import { CredentialStore } from "./credential-store.js";
 import { registerUserTools } from "./tools/user.js";
 import { registerCategoryTools } from "./tools/categories.js";
@@ -98,15 +101,17 @@ export async function createServer(options?: CreateServerOptions): Promise<FastM
 
   // Only register API tools if we have a token
   if (token) {
-    const client = new LunchMoneyClient(token);
-    registerUserTools(server, client);
-    registerCategoryTools(server, client);
-    registerTagTools(server, client);
-    registerTransactionTools(server, client);
-    registerRecurringTools(server, client);
-    registerBudgetTools(server, client);
-    registerAssetTools(server, client);
-    registerPlaidTools(server, client);
+    const v1Client = createV1Client(token);
+    const v2Client = createV2Client(token);
+    const api = createApiFacade(v1Client, v2Client);
+    registerUserTools(server, api);
+    registerCategoryTools(server, api);
+    registerTagTools(server, api);
+    registerTransactionTools(server, api);
+    registerRecurringTools(server, api);
+    registerBudgetTools(server, api);
+    registerAssetTools(server, api);
+    registerPlaidTools(server, api);
   } else {
     // Register a stub getUser tool that tells the user to configure their token
     server.addTool({

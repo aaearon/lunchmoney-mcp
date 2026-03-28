@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerPlaidTools } from "../../src/tools/plaid.js";
-import { LunchMoneyClient } from "../../src/api/client.js";
 import { LunchMoneyAPIError } from "../../src/utils/errors.js";
 import type { PlaidAccountsResponse } from "../../src/types/index.js";
 
@@ -21,27 +20,21 @@ function createMockServer() {
   };
 }
 
-function createMockClient() {
+function createMockApi() {
   return {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  } as unknown as LunchMoneyClient & {
-    get: ReturnType<typeof vi.fn>;
-    post: ReturnType<typeof vi.fn>;
+    plaid: { list: vi.fn(), fetch: vi.fn() },
   };
 }
 
 describe("Plaid tools", () => {
   let mockServer: ReturnType<typeof createMockServer>;
-  let mockClient: ReturnType<typeof createMockClient>;
+  let mockApi: ReturnType<typeof createMockApi>;
   let tools: RegisteredTool[];
 
   beforeEach(() => {
     mockServer = createMockServer();
-    mockClient = createMockClient();
-    registerPlaidTools(mockServer as never, mockClient);
+    mockApi = createMockApi();
+    registerPlaidTools(mockServer as never, mockApi as never);
     tools = mockServer.tools;
   });
 
@@ -89,17 +82,17 @@ describe("Plaid tools", () => {
         ],
       };
 
-      mockClient.get.mockResolvedValue(mockResponse);
+      mockApi.plaid.list.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "getPlaidAccounts")!;
       const result = await tool.execute({});
 
-      expect(mockClient.get).toHaveBeenCalledWith("/plaid_accounts");
+      expect(mockApi.plaid.list).toHaveBeenCalled();
       expect(result).toBe(JSON.stringify(mockResponse, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.get.mockRejectedValue(
+      mockApi.plaid.list.mockRejectedValue(
         new LunchMoneyAPIError("Unauthorized", 401)
       );
 
@@ -112,7 +105,7 @@ describe("Plaid tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.get.mockRejectedValue(new Error("Network failure"));
+      mockApi.plaid.list.mockRejectedValue(new Error("Network failure"));
 
       const tool = tools.find((t) => t.name === "getPlaidAccounts")!;
       const result = await tool.execute({});
@@ -121,7 +114,7 @@ describe("Plaid tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.get.mockRejectedValue("something unexpected");
+      mockApi.plaid.list.mockRejectedValue("something unexpected");
 
       const tool = tools.find((t) => t.name === "getPlaidAccounts")!;
       const result = await tool.execute({});
@@ -132,17 +125,17 @@ describe("Plaid tools", () => {
 
   describe("fetchPlaidAccounts", () => {
     it("returns JSON stringified boolean on success", async () => {
-      mockClient.post.mockResolvedValue(true);
+      mockApi.plaid.fetch.mockResolvedValue(true);
 
       const tool = tools.find((t) => t.name === "fetchPlaidAccounts")!;
       const result = await tool.execute({});
 
-      expect(mockClient.post).toHaveBeenCalledWith("/plaid_accounts/fetch");
+      expect(mockApi.plaid.fetch).toHaveBeenCalled();
       expect(result).toBe(JSON.stringify(true, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.post.mockRejectedValue(
+      mockApi.plaid.fetch.mockRejectedValue(
         new LunchMoneyAPIError("Rate limited", 429)
       );
 
@@ -155,7 +148,7 @@ describe("Plaid tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.post.mockRejectedValue(new Error("Connection timeout"));
+      mockApi.plaid.fetch.mockRejectedValue(new Error("Connection timeout"));
 
       const tool = tools.find((t) => t.name === "fetchPlaidAccounts")!;
       const result = await tool.execute({});
@@ -164,7 +157,7 @@ describe("Plaid tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.post.mockRejectedValue(42);
+      mockApi.plaid.fetch.mockRejectedValue(42);
 
       const tool = tools.find((t) => t.name === "fetchPlaidAccounts")!;
       const result = await tool.execute({});

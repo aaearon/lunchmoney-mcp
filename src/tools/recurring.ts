@@ -1,27 +1,21 @@
 import { FastMCP } from "fastmcp";
 import { z } from "zod";
-import { LunchMoneyClient } from "../api/client.js";
+import type { LunchMoneyApi } from "../api/facade.js";
 import { formatErrorForMCP } from "../utils/errors.js";
 import {
   createRecurringItemSchema,
   updateRecurringItemSchema,
   idSchema,
 } from "../schemas/index.js";
-import { RecurringItemsResponse, RecurringItem } from "../types/index.js";
 
-export function registerRecurringTools(
-  server: FastMCP,
-  client: LunchMoneyClient
-) {
+export function registerRecurringTools(server: FastMCP, api: LunchMoneyApi) {
   server.addTool({
     name: "getRecurringItems",
     description: "List all recurring expense and income items",
     parameters: z.object({}),
     execute: async () => {
       try {
-        const response = await client.get<RecurringItemsResponse>(
-          "/recurring_expenses"
-        );
+        const response = await api.recurring.list();
         return JSON.stringify(response, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -35,10 +29,7 @@ export function registerRecurringTools(
     parameters: createRecurringItemSchema,
     execute: async (args: z.infer<typeof createRecurringItemSchema>) => {
       try {
-        const item = await client.post<{ recurring_expense: RecurringItem }>(
-          "/recurring_expenses",
-          args
-        );
+        const item = await api.recurring.create(args);
         return JSON.stringify(item, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -53,10 +44,7 @@ export function registerRecurringTools(
     execute: async (args: z.infer<typeof idSchema> & z.infer<typeof updateRecurringItemSchema>) => {
       try {
         const { id, ...updateData } = args;
-        const item = await client.put<{ recurring_expense: RecurringItem }>(
-          `/recurring_expenses/${id}`,
-          updateData
-        );
+        const item = await api.recurring.update(id, updateData);
         return JSON.stringify(item, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -70,7 +58,7 @@ export function registerRecurringTools(
     parameters: idSchema,
     execute: async (args: z.infer<typeof idSchema>) => {
       try {
-        await client.delete(`/recurring_expenses/${args.id}`);
+        await api.recurring.delete(args.id);
         return `Recurring item ${args.id} deleted successfully`;
       } catch (error) {
         return formatErrorForMCP(error);

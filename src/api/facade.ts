@@ -7,6 +7,7 @@
  * domain-by-domain during the migration.
  */
 import type { HttpClient } from "./http-client.js";
+import type { V2User } from "../types/v2.js";
 import type {
   User,
   Category,
@@ -85,10 +86,18 @@ export interface LunchMoneyApi {
  * Create the API facade. Initially all methods use the v1 client.
  * During migration, individual methods are switched to v2.
  */
-export function createApiFacade(v1: HttpClient, _v2: HttpClient): LunchMoneyApi {
+export function createApiFacade(v1: HttpClient, v2: HttpClient): LunchMoneyApi {
   return {
     user: {
-      get: () => v1.get<User>("/me"),
+      get: async () => {
+        const v2User = await v2.get<V2User>("/me");
+        return {
+          id: v2User.user_id,
+          email: v2User.user_email,
+          name: v2User.user_name,
+          currency: v2User.primary_currency,
+        };
+      },
     },
     categories: {
       list: () => v1.get<CategoriesResponse>("/categories"),
@@ -100,10 +109,10 @@ export function createApiFacade(v1: HttpClient, _v2: HttpClient): LunchMoneyApi 
       addToGroup: (groupId, data) => v1.post(`/categories/group/${groupId}/add`, data),
     },
     tags: {
-      list: () => v1.get<TagsResponse>("/tags"),
-      create: (data) => v1.post<{ tag: Tag }>("/tags", data),
-      update: (id, data) => v1.put<{ tag: Tag }>(`/tags/${id}`, data),
-      delete: (id) => v1.delete(`/tags/${id}`),
+      list: () => v2.get<TagsResponse>("/tags"),
+      create: (data) => v2.post<{ tag: Tag }>("/tags", data),
+      update: (id, data) => v2.put<{ tag: Tag }>(`/tags/${id}`, data),
+      delete: (id) => v2.delete(`/tags/${id}`),
     },
     transactions: {
       list: (params) => v1.get<TransactionsResponse>("/transactions", params),
@@ -136,8 +145,11 @@ export function createApiFacade(v1: HttpClient, _v2: HttpClient): LunchMoneyApi 
       delete: (id) => v1.delete(`/assets/${id}`),
     },
     plaid: {
-      list: () => v1.get<PlaidAccountsResponse>("/plaid_accounts"),
-      fetch: () => v1.post<boolean>("/plaid_accounts/fetch"),
+      list: () => v2.get<PlaidAccountsResponse>("/plaid_accounts"),
+      fetch: async () => {
+        await v2.post("/plaid_accounts/fetch");
+        return true;
+      },
     },
   };
 }

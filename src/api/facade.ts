@@ -191,10 +191,10 @@ export function createApiFacade(v1: HttpClient, v2: HttpClient): LunchMoneyApi {
       delete: (id) => v1.delete(`/recurring_expenses/${id}`),
     },
     budgets: {
-      list: () => v1.get<BudgetsResponse>("/budgets"),
-      create: (data) => v1.post<{ budget: Budget }>("/budgets", data),
-      update: (id, data) => v1.put<{ budget: Budget }>(`/budgets/${id}`, data),
-      delete: (id) => v1.delete(`/budgets/${id}`),
+      list: () => v2.get<BudgetsResponse>("/budgets"),
+      create: (data) => v1.post<{ budget: Budget }>("/budgets", data),        // v1: no POST in v2
+      update: (id, data) => v2.put<{ budget: Budget }>(`/budgets/${id}`, data),
+      delete: (id) => v1.delete(`/budgets/${id}`),                             // v1: no DELETE in v2
     },
     assets: {
       list: async () => {

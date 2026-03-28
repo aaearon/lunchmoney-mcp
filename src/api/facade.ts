@@ -10,6 +10,7 @@ import type { HttpClient } from "./http-client.js";
 import type { V2User, ManualAccount, ManualAccountsResponse, V2Category, V2CategoriesResponse } from "../types/v2.js";
 import { mapManualAccountToAsset, mapAssetRequestToManualAccountRequest } from "./mappers/assets.js";
 import { mapV2CategoryToCategory, mapCategoryGroupRequestToV2, mapAddToGroupRequestToV2Update } from "./mappers/categories.js";
+import { mapV2StatusToV1, mapV1StatusToV2, mapV1FilterParamsToV2 } from "./mappers/transactions.js";
 import type {
   User,
   Category,
@@ -136,16 +137,52 @@ export function createApiFacade(v1: HttpClient, v2: HttpClient): LunchMoneyApi {
       delete: (id) => v2.delete(`/tags/${id}`),
     },
     transactions: {
-      list: (params) => v1.get<TransactionsResponse>("/transactions", params),
-      get: (id) => v1.get<Transaction>(`/transactions/${id}`),
-      create: (data) => v1.post<{ transaction: Transaction }>("/transactions", data),
-      update: (id, data) => v1.put<{ transaction: Transaction }>(`/transactions/${id}`, data),
-      delete: (id) => v1.delete(`/transactions/${id}`),
-      bulkUpdate: (data) => v1.post<{ updated: number }>("/transactions/bulk", data),
-      getGroup: (transactionId) => v1.get<Transaction>("/transactions/group", { transaction_id: transactionId }),
-      createGroup: (data) => v1.post<Transaction>("/transactions/group", data),
-      deleteGroup: (id) => v1.delete(`/transactions/group/${id}`),
-      unsplit: (data) => v1.post("/transactions/unsplit", data),
+      list: async (params) => {
+        const v2Params = params ? mapV1FilterParamsToV2(params) : undefined;
+        const response = await v2.get<TransactionsResponse>("/transactions", v2Params);
+        // Map status values back to v1 for MCP compat
+        response.transactions = response.transactions.map((t) => ({
+          ...t,
+          status: t.status ? mapV2StatusToV1(t.status) as Transaction["status"] : t.status,
+        }));
+        return response;
+      },
+      get: async (id) => {
+        const t = await v2.get<Transaction>(`/transactions/${id}`);
+        return { ...t, status: t.status ? mapV2StatusToV1(t.status) as Transaction["status"] : t.status };
+      },
+      create: async (data) => {
+        // Map status in request if present
+        const body = { ...data };
+        if (typeof body.status === "string") {
+          body.status = mapV1StatusToV2(body.status as string) ?? body.status;
+        }
+        const result = await v2.post<{ transaction: Transaction }>("/transactions", body);
+        if (result.transaction?.status) {
+          result.transaction.status = mapV2StatusToV1(result.transaction.status) as Transaction["status"];
+        }
+        return result;
+      },
+      update: async (id, data) => {
+        const body = { ...data };
+        if (typeof body.status === "string") {
+          body.status = mapV1StatusToV2(body.status as string) ?? body.status;
+        }
+        const result = await v2.put<{ transaction: Transaction }>(`/transactions/${id}`, body);
+        if (result.transaction?.status) {
+          result.transaction.status = mapV2StatusToV1(result.transaction.status) as Transaction["status"];
+        }
+        return result;
+      },
+      delete: (id) => v2.delete(`/transactions/${id}`),
+      bulkUpdate: (data) => v2.put<{ updated: number }>("/transactions", data),
+      getGroup: async (transactionId) => {
+        const t = await v2.get<Transaction>(`/transactions/group/${transactionId}`);
+        return { ...t, status: t.status ? mapV2StatusToV1(t.status) as Transaction["status"] : t.status };
+      },
+      createGroup: (data) => v2.post<Transaction>("/transactions/group", data),
+      deleteGroup: (id) => v2.delete(`/transactions/group/${id}`),
+      unsplit: (data) => v2.post("/transactions/unsplit", data),
     },
     recurring: {
       list: () => v1.get<RecurringItemsResponse>("/recurring_expenses"),

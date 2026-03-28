@@ -7,7 +7,8 @@
  * domain-by-domain during the migration.
  */
 import type { HttpClient } from "./http-client.js";
-import type { V2User } from "../types/v2.js";
+import type { V2User, ManualAccount, ManualAccountsResponse } from "../types/v2.js";
+import { mapManualAccountToAsset, mapAssetRequestToManualAccountRequest } from "./mappers/assets.js";
 import type {
   User,
   Category,
@@ -139,10 +140,21 @@ export function createApiFacade(v1: HttpClient, v2: HttpClient): LunchMoneyApi {
       delete: (id) => v1.delete(`/budgets/${id}`),
     },
     assets: {
-      list: () => v1.get<AssetsResponse>("/assets"),
-      create: (data) => v1.post<{ asset: Asset }>("/assets", data),
-      update: (id, data) => v1.put<{ asset: Asset }>(`/assets/${id}`, data),
-      delete: (id) => v1.delete(`/assets/${id}`),
+      list: async () => {
+        const response = await v2.get<ManualAccountsResponse>("/manual_accounts");
+        return { assets: response.manual_accounts.map(mapManualAccountToAsset) };
+      },
+      create: async (data) => {
+        const body = mapAssetRequestToManualAccountRequest(data);
+        const account = await v2.post<ManualAccount>("/manual_accounts", body);
+        return { asset: mapManualAccountToAsset(account) };
+      },
+      update: async (id, data) => {
+        const body = mapAssetRequestToManualAccountRequest(data);
+        const account = await v2.put<ManualAccount>(`/manual_accounts/${id}`, body);
+        return { asset: mapManualAccountToAsset(account) };
+      },
+      delete: (id) => v2.delete(`/manual_accounts/${id}`),
     },
     plaid: {
       list: () => v2.get<PlaidAccountsResponse>("/plaid_accounts"),

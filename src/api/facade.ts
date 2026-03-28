@@ -7,8 +7,9 @@
  * domain-by-domain during the migration.
  */
 import type { HttpClient } from "./http-client.js";
-import type { V2User, ManualAccount, ManualAccountsResponse } from "../types/v2.js";
+import type { V2User, ManualAccount, ManualAccountsResponse, V2Category, V2CategoriesResponse } from "../types/v2.js";
 import { mapManualAccountToAsset, mapAssetRequestToManualAccountRequest } from "./mappers/assets.js";
+import { mapV2CategoryToCategory, mapCategoryGroupRequestToV2, mapAddToGroupRequestToV2Update } from "./mappers/categories.js";
 import type {
   User,
   Category,
@@ -101,13 +102,32 @@ export function createApiFacade(v1: HttpClient, v2: HttpClient): LunchMoneyApi {
       },
     },
     categories: {
-      list: () => v1.get<CategoriesResponse>("/categories"),
-      get: (id) => v1.get<Category>(`/categories/${id}`),
-      create: (data) => v1.post<{ category: Category }>("/categories", data),
-      update: (id, data) => v1.put<{ category: Category }>(`/categories/${id}`, data),
-      delete: (id) => v1.delete(`/categories/${id}`),
-      createGroup: (data) => v1.post<{ category_group: CategoryGroup }>("/categories/group", data),
-      addToGroup: (groupId, data) => v1.post(`/categories/group/${groupId}/add`, data),
+      list: async () => {
+        const response = await v2.get<V2CategoriesResponse>("/categories");
+        return { categories: response.categories.map(mapV2CategoryToCategory) };
+      },
+      get: async (id) => {
+        const v2Cat = await v2.get<V2Category>(`/categories/${id}`);
+        return mapV2CategoryToCategory(v2Cat);
+      },
+      create: async (data) => {
+        const v2Cat = await v2.post<V2Category>("/categories", data);
+        return { category: mapV2CategoryToCategory(v2Cat) };
+      },
+      update: async (id, data) => {
+        const v2Cat = await v2.put<V2Category>(`/categories/${id}`, data);
+        return { category: mapV2CategoryToCategory(v2Cat) };
+      },
+      delete: (id) => v2.delete(`/categories/${id}`),
+      createGroup: async (data) => {
+        const body = mapCategoryGroupRequestToV2(data);
+        const v2Cat = await v2.post<V2Category>("/categories", body);
+        return { category_group: { id: v2Cat.id, name: v2Cat.name, created_at: v2Cat.created_at } };
+      },
+      addToGroup: async (groupId, data) => {
+        const body = mapAddToGroupRequestToV2Update(data);
+        return v2.put(`/categories/${groupId}`, body);
+      },
     },
     tags: {
       list: () => v2.get<TagsResponse>("/tags"),

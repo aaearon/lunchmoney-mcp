@@ -1,6 +1,6 @@
 import { FastMCP } from "fastmcp";
 import { z } from "zod";
-import { LunchMoneyClient } from "../api/client.js";
+import type { LunchMoneyApi } from "../api/facade.js";
 import { formatErrorForMCP } from "../utils/errors.js";
 import {
   transactionFilterSchema,
@@ -11,12 +11,8 @@ import {
   unsplitTransactionsSchema,
   idSchema,
 } from "../schemas/index.js";
-import { TransactionsResponse, Transaction } from "../types/index.js";
 
-export function registerTransactionTools(
-  server: FastMCP,
-  client: LunchMoneyClient
-) {
+export function registerTransactionTools(server: FastMCP, api: LunchMoneyApi) {
   server.addTool({
     name: "getTransactions",
     description:
@@ -24,10 +20,7 @@ export function registerTransactionTools(
     parameters: transactionFilterSchema,
     execute: async (args: z.infer<typeof transactionFilterSchema>) => {
       try {
-        const response = await client.get<TransactionsResponse>(
-          "/transactions",
-          args
-        );
+        const response = await api.transactions.list(args);
         return JSON.stringify(response, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -41,9 +34,7 @@ export function registerTransactionTools(
     parameters: idSchema,
     execute: async (args: z.infer<typeof idSchema>) => {
       try {
-        const response = await client.get<Transaction>(
-          `/transactions/${args.id}`
-        );
+        const response = await api.transactions.get(args.id);
         return JSON.stringify(response, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -57,10 +48,7 @@ export function registerTransactionTools(
     parameters: createTransactionSchema,
     execute: async (args: z.infer<typeof createTransactionSchema>) => {
       try {
-        const transaction = await client.post<{ transaction: Transaction }>(
-          "/transactions",
-          args
-        );
+        const transaction = await api.transactions.create(args);
         return JSON.stringify(transaction, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -75,10 +63,7 @@ export function registerTransactionTools(
     execute: async (args: z.infer<typeof idSchema> & z.infer<typeof updateTransactionSchema>) => {
       try {
         const { id, ...updateData } = args;
-        const transaction = await client.put<{ transaction: Transaction }>(
-          `/transactions/${id}`,
-          updateData
-        );
+        const transaction = await api.transactions.update(id, updateData);
         return JSON.stringify(transaction, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -92,7 +77,7 @@ export function registerTransactionTools(
     parameters: idSchema,
     execute: async (args: z.infer<typeof idSchema>) => {
       try {
-        await client.delete(`/transactions/${args.id}`);
+        await api.transactions.delete(args.id);
         return `Transaction ${args.id} deleted successfully`;
       } catch (error) {
         return formatErrorForMCP(error);
@@ -107,10 +92,7 @@ export function registerTransactionTools(
     parameters: bulkUpdateTransactionsSchema,
     execute: async (args: z.infer<typeof bulkUpdateTransactionsSchema>) => {
       try {
-        const result = await client.post<{ updated: number }>(
-          "/transactions/bulk",
-          args
-        );
+        const result = await api.transactions.bulkUpdate(args);
         return JSON.stringify(result, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -124,10 +106,7 @@ export function registerTransactionTools(
     parameters: idSchema,
     execute: async (args: z.infer<typeof idSchema>) => {
       try {
-        const response = await client.get<Transaction>(
-          "/transactions/group",
-          { transaction_id: args.id }
-        );
+        const response = await api.transactions.getGroup(args.id);
         return JSON.stringify(response, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -142,10 +121,7 @@ export function registerTransactionTools(
     parameters: createTransactionGroupSchema,
     execute: async (args: z.infer<typeof createTransactionGroupSchema>) => {
       try {
-        const response = await client.post<Transaction>(
-          "/transactions/group",
-          args
-        );
+        const response = await api.transactions.createGroup(args);
         return JSON.stringify(response, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -160,7 +136,7 @@ export function registerTransactionTools(
     parameters: idSchema,
     execute: async (args: z.infer<typeof idSchema>) => {
       try {
-        await client.delete(`/transactions/group/${args.id}`);
+        await api.transactions.deleteGroup(args.id);
         return `Transaction group ${args.id} deleted successfully`;
       } catch (error) {
         return formatErrorForMCP(error);
@@ -175,7 +151,7 @@ export function registerTransactionTools(
     parameters: unsplitTransactionsSchema,
     execute: async (args: z.infer<typeof unsplitTransactionsSchema>) => {
       try {
-        const response = await client.post("/transactions/unsplit", args);
+        const response = await api.transactions.unsplit(args);
         return JSON.stringify(response, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);

@@ -1,25 +1,21 @@
 import { FastMCP } from "fastmcp";
 import { z } from "zod";
-import { LunchMoneyClient } from "../api/client.js";
+import type { LunchMoneyApi } from "../api/facade.js";
 import { formatErrorForMCP } from "../utils/errors.js";
 import {
     createBudgetSchema,
     updateBudgetSchema,
     idSchema,
 } from "../schemas/index.js";
-import { BudgetsResponse, Budget } from "../types/index.js";
 
-export function registerBudgetTools(
-    server: FastMCP,
-    client: LunchMoneyClient
-) {
+export function registerBudgetTools(server: FastMCP, api: LunchMoneyApi) {
     server.addTool({
         name: "getBudgets",
         description: "List all budgets with their category assignments and date ranges",
         parameters: z.object({}),
         execute: async () => {
             try {
-                const response = await client.get<BudgetsResponse>("/budgets");
+                const response = await api.budgets.list();
                 return JSON.stringify(response, null, 2);
             } catch (error) {
                 return formatErrorForMCP(error);
@@ -33,10 +29,7 @@ export function registerBudgetTools(
         parameters: createBudgetSchema,
         execute: async (args: z.infer<typeof createBudgetSchema>) => {
             try {
-                const budget = await client.post<{ budget: Budget }>(
-                    "/budgets",
-                    args
-                );
+                const budget = await api.budgets.create(args);
                 return JSON.stringify(budget, null, 2);
             } catch (error) {
                 return formatErrorForMCP(error);
@@ -51,10 +44,7 @@ export function registerBudgetTools(
         execute: async (args: z.infer<typeof idSchema> & z.infer<typeof updateBudgetSchema>) => {
             try {
                 const { id, ...updateData } = args;
-                const budget = await client.put<{ budget: Budget }>(
-                    `/budgets/${id}`,
-                    updateData
-                );
+                const budget = await api.budgets.update(id, updateData);
                 return JSON.stringify(budget, null, 2);
             } catch (error) {
                 return formatErrorForMCP(error);
@@ -68,7 +58,7 @@ export function registerBudgetTools(
         parameters: idSchema,
         execute: async (args: z.infer<typeof idSchema>) => {
             try {
-                await client.delete(`/budgets/${args.id}`);
+                await api.budgets.delete(args.id);
                 return `Budget ${args.id} deleted successfully`;
             } catch (error) {
                 return formatErrorForMCP(error);

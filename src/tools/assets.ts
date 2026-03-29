@@ -1,25 +1,21 @@
 import { FastMCP } from "fastmcp";
 import { z } from "zod";
-import { LunchMoneyClient } from "../api/client.js";
+import type { LunchMoneyApi } from "../api/facade.js";
 import { formatErrorForMCP } from "../utils/errors.js";
 import {
   createAssetSchema,
   updateAssetSchema,
   idSchema,
 } from "../schemas/index.js";
-import { AssetsResponse, Asset } from "../types/index.js";
 
-export function registerAssetTools(
-  server: FastMCP,
-  client: LunchMoneyClient
-) {
+export function registerAssetTools(server: FastMCP, api: LunchMoneyApi) {
   server.addTool({
     name: "getAssets",
     description: "List all manually-managed assets",
     parameters: z.object({}),
     execute: async () => {
       try {
-        const response = await client.get<AssetsResponse>("/assets");
+        const response = await api.assets.list();
         return JSON.stringify(response, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -33,7 +29,7 @@ export function registerAssetTools(
     parameters: createAssetSchema,
     execute: async (args: z.infer<typeof createAssetSchema>) => {
       try {
-        const asset = await client.post<{ asset: Asset }>("/assets", args);
+        const asset = await api.assets.create(args);
         return JSON.stringify(asset, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -48,10 +44,7 @@ export function registerAssetTools(
     execute: async (args: z.infer<typeof idSchema> & z.infer<typeof updateAssetSchema>) => {
       try {
         const { id, ...updateData } = args;
-        const asset = await client.put<{ asset: Asset }>(
-          `/assets/${id}`,
-          updateData
-        );
+        const asset = await api.assets.update(id, updateData);
         return JSON.stringify(asset, null, 2);
       } catch (error) {
         return formatErrorForMCP(error);
@@ -65,7 +58,7 @@ export function registerAssetTools(
     parameters: idSchema,
     execute: async (args: z.infer<typeof idSchema>) => {
       try {
-        await client.delete(`/assets/${args.id}`);
+        await api.assets.delete(args.id);
         return `Asset ${args.id} deleted successfully`;
       } catch (error) {
         return formatErrorForMCP(error);

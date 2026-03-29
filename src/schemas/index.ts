@@ -9,7 +9,7 @@ export const transactionFilterSchema = z.object({
   account_id: z.number().optional(),
   debit_as_negative: z.boolean().optional(),
   pending: z.boolean().optional(),
-  status: z.enum(["cleared", "uncleared", "recurring", "recurring_suggested"]).optional(),
+  status: z.enum(["cleared", "uncleared"]).optional(),
   offset: z.number().int().min(0).optional(),
   limit: z.number().int().min(1).max(1000).optional(),
 });

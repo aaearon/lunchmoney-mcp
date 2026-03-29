@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerBudgetTools } from "../../src/tools/budgets.js";
-import { LunchMoneyClient } from "../../src/api/client.js";
 import { LunchMoneyAPIError } from "../../src/utils/errors.js";
 import type { BudgetsResponse, Budget } from "../../src/types/index.js";
 
@@ -21,29 +20,28 @@ function createMockServer() {
   };
 }
 
-function createMockClient() {
+function createMockApi() {
   return {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  } as unknown as LunchMoneyClient & {
-    get: ReturnType<typeof vi.fn>;
-    post: ReturnType<typeof vi.fn>;
-    put: ReturnType<typeof vi.fn>;
-    delete: ReturnType<typeof vi.fn>;
+    user: { get: vi.fn() },
+    categories: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), createGroup: vi.fn(), addToGroup: vi.fn() },
+    tags: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    transactions: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), bulkUpdate: vi.fn(), getGroup: vi.fn(), createGroup: vi.fn(), deleteGroup: vi.fn(), unsplit: vi.fn() },
+    recurring: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    budgets: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    assets: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    plaid: { list: vi.fn(), fetch: vi.fn() },
   };
 }
 
 describe("Budget tools", () => {
   let mockServer: ReturnType<typeof createMockServer>;
-  let mockClient: ReturnType<typeof createMockClient>;
+  let mockApi: ReturnType<typeof createMockApi>;
   let tools: RegisteredTool[];
 
   beforeEach(() => {
     mockServer = createMockServer();
-    mockClient = createMockClient();
-    registerBudgetTools(mockServer as never, mockClient);
+    mockApi = createMockApi();
+    registerBudgetTools(mockServer as never, mockApi as never);
     tools = mockServer.tools;
   });
 
@@ -82,17 +80,17 @@ describe("Budget tools", () => {
         ],
       };
 
-      mockClient.get.mockResolvedValue(mockResponse);
+      mockApi.budgets.list.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "getBudgets")!;
       const result = await tool.execute({});
 
-      expect(mockClient.get).toHaveBeenCalledWith("/budgets");
+      expect(mockApi.budgets.list).toHaveBeenCalled();
       expect(result).toBe(JSON.stringify(mockResponse, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.get.mockRejectedValue(
+      mockApi.budgets.list.mockRejectedValue(
         new LunchMoneyAPIError("Unauthorized", 401)
       );
 
@@ -105,7 +103,7 @@ describe("Budget tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.get.mockRejectedValue(new Error("Network failure"));
+      mockApi.budgets.list.mockRejectedValue(new Error("Network failure"));
 
       const tool = tools.find((t) => t.name === "getBudgets")!;
       const result = await tool.execute({});
@@ -114,7 +112,7 @@ describe("Budget tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.get.mockRejectedValue("something unexpected");
+      mockApi.budgets.list.mockRejectedValue("something unexpected");
 
       const tool = tools.find((t) => t.name === "getBudgets")!;
       const result = await tool.execute({});
@@ -137,7 +135,7 @@ describe("Budget tools", () => {
         },
       };
 
-      mockClient.post.mockResolvedValue(mockResponse);
+      mockApi.budgets.create.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "createBudget")!;
       const args = {
@@ -148,12 +146,12 @@ describe("Budget tools", () => {
       };
       const result = await tool.execute(args);
 
-      expect(mockClient.post).toHaveBeenCalledWith("/budgets", args);
+      expect(mockApi.budgets.create).toHaveBeenCalledWith(args);
       expect(result).toBe(JSON.stringify(mockResponse, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.post.mockRejectedValue(
+      mockApi.budgets.create.mockRejectedValue(
         new LunchMoneyAPIError("Bad Request", 400)
       );
 
@@ -170,7 +168,7 @@ describe("Budget tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.post.mockRejectedValue(new Error("Connection timeout"));
+      mockApi.budgets.create.mockRejectedValue(new Error("Connection timeout"));
 
       const tool = tools.find((t) => t.name === "createBudget")!;
       const result = await tool.execute({
@@ -183,7 +181,7 @@ describe("Budget tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.post.mockRejectedValue(42);
+      mockApi.budgets.create.mockRejectedValue(42);
 
       const tool = tools.find((t) => t.name === "createBudget")!;
       const result = await tool.execute({
@@ -210,19 +208,19 @@ describe("Budget tools", () => {
         },
       };
 
-      mockClient.put.mockResolvedValue(mockResponse);
+      mockApi.budgets.update.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "updateBudget")!;
       const result = await tool.execute({ id: 1, amount: "600.00" });
 
-      expect(mockClient.put).toHaveBeenCalledWith("/budgets/1", {
+      expect(mockApi.budgets.update).toHaveBeenCalledWith(1, {
         amount: "600.00",
       });
       expect(result).toBe(JSON.stringify(mockResponse, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.put.mockRejectedValue(
+      mockApi.budgets.update.mockRejectedValue(
         new LunchMoneyAPIError("Not Found", 404)
       );
 
@@ -235,7 +233,7 @@ describe("Budget tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.put.mockRejectedValue(new Error("Server error"));
+      mockApi.budgets.update.mockRejectedValue(new Error("Server error"));
 
       const tool = tools.find((t) => t.name === "updateBudget")!;
       const result = await tool.execute({ id: 1, amount: "600.00" });
@@ -244,7 +242,7 @@ describe("Budget tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.put.mockRejectedValue(undefined);
+      mockApi.budgets.update.mockRejectedValue(undefined);
 
       const tool = tools.find((t) => t.name === "updateBudget")!;
       const result = await tool.execute({ id: 1, amount: "600.00" });
@@ -255,17 +253,17 @@ describe("Budget tools", () => {
 
   describe("deleteBudget", () => {
     it("returns success message on delete", async () => {
-      mockClient.delete.mockResolvedValue(undefined);
+      mockApi.budgets.delete.mockResolvedValue(undefined);
 
       const tool = tools.find((t) => t.name === "deleteBudget")!;
       const result = await tool.execute({ id: 2 });
 
-      expect(mockClient.delete).toHaveBeenCalledWith("/budgets/2");
+      expect(mockApi.budgets.delete).toHaveBeenCalledWith(2);
       expect(result).toBe("Budget 2 deleted successfully");
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.delete.mockRejectedValue(
+      mockApi.budgets.delete.mockRejectedValue(
         new LunchMoneyAPIError("Forbidden", 403)
       );
 
@@ -278,7 +276,7 @@ describe("Budget tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.delete.mockRejectedValue(new Error("Network issue"));
+      mockApi.budgets.delete.mockRejectedValue(new Error("Network issue"));
 
       const tool = tools.find((t) => t.name === "deleteBudget")!;
       const result = await tool.execute({ id: 2 });
@@ -287,7 +285,7 @@ describe("Budget tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.delete.mockRejectedValue(null);
+      mockApi.budgets.delete.mockRejectedValue(null);
 
       const tool = tools.find((t) => t.name === "deleteBudget")!;
       const result = await tool.execute({ id: 2 });

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerUserTools } from "../../src/tools/user.js";
-import { LunchMoneyClient } from "../../src/api/client.js";
 import { LunchMoneyAPIError } from "../../src/utils/errors.js";
 import type { User } from "../../src/types/index.js";
 
@@ -21,29 +20,21 @@ function createMockServer() {
   };
 }
 
-function createMockClient() {
+function createMockApi() {
   return {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  } as unknown as LunchMoneyClient & {
-    get: ReturnType<typeof vi.fn>;
-    post: ReturnType<typeof vi.fn>;
-    put: ReturnType<typeof vi.fn>;
-    delete: ReturnType<typeof vi.fn>;
+    user: { get: vi.fn() },
   };
 }
 
 describe("User tools", () => {
   let mockServer: ReturnType<typeof createMockServer>;
-  let mockClient: ReturnType<typeof createMockClient>;
+  let mockApi: ReturnType<typeof createMockApi>;
   let tools: RegisteredTool[];
 
   beforeEach(() => {
     mockServer = createMockServer();
-    mockClient = createMockClient();
-    registerUserTools(mockServer as never, mockClient);
+    mockApi = createMockApi();
+    registerUserTools(mockServer as never, mockApi as never);
     tools = mockServer.tools;
   });
 
@@ -66,17 +57,17 @@ describe("User tools", () => {
         created_at: "2024-01-01T00:00:00.000Z",
       };
 
-      mockClient.get.mockResolvedValue(mockUser);
+      mockApi.user.get.mockResolvedValue(mockUser);
 
       const tool = tools.find((t) => t.name === "getUser")!;
       const result = await tool.execute({});
 
-      expect(mockClient.get).toHaveBeenCalledWith("/me");
+      expect(mockApi.user.get).toHaveBeenCalled();
       expect(result).toBe(JSON.stringify(mockUser, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.get.mockRejectedValue(
+      mockApi.user.get.mockRejectedValue(
         new LunchMoneyAPIError("Unauthorized", 401)
       );
 
@@ -89,7 +80,7 @@ describe("User tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.get.mockRejectedValue(new Error("Network failure"));
+      mockApi.user.get.mockRejectedValue(new Error("Network failure"));
 
       const tool = tools.find((t) => t.name === "getUser")!;
       const result = await tool.execute({});
@@ -98,7 +89,7 @@ describe("User tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.get.mockRejectedValue("something unexpected");
+      mockApi.user.get.mockRejectedValue("something unexpected");
 
       const tool = tools.find((t) => t.name === "getUser")!;
       const result = await tool.execute({});

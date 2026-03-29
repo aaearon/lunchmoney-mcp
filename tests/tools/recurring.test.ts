@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerRecurringTools } from "../../src/tools/recurring.js";
-import { LunchMoneyClient } from "../../src/api/client.js";
 import { LunchMoneyAPIError } from "../../src/utils/errors.js";
 import type {
   RecurringItemsResponse,
@@ -24,29 +23,28 @@ function createMockServer() {
   };
 }
 
-function createMockClient() {
+function createMockApi() {
   return {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  } as unknown as LunchMoneyClient & {
-    get: ReturnType<typeof vi.fn>;
-    post: ReturnType<typeof vi.fn>;
-    put: ReturnType<typeof vi.fn>;
-    delete: ReturnType<typeof vi.fn>;
+    user: { get: vi.fn() },
+    categories: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), createGroup: vi.fn(), addToGroup: vi.fn() },
+    tags: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    transactions: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), bulkUpdate: vi.fn(), getGroup: vi.fn(), createGroup: vi.fn(), deleteGroup: vi.fn(), unsplit: vi.fn() },
+    recurring: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    budgets: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    assets: { list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    plaid: { list: vi.fn(), fetch: vi.fn() },
   };
 }
 
 describe("Recurring tools", () => {
   let mockServer: ReturnType<typeof createMockServer>;
-  let mockClient: ReturnType<typeof createMockClient>;
+  let mockApi: ReturnType<typeof createMockApi>;
   let tools: RegisteredTool[];
 
   beforeEach(() => {
     mockServer = createMockServer();
-    mockClient = createMockClient();
-    registerRecurringTools(mockServer as never, mockClient);
+    mockApi = createMockApi();
+    registerRecurringTools(mockServer as never, mockApi as never);
     tools = mockServer.tools;
   });
 
@@ -85,17 +83,17 @@ describe("Recurring tools", () => {
         ],
       };
 
-      mockClient.get.mockResolvedValue(mockResponse);
+      mockApi.recurring.list.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "getRecurringItems")!;
       const result = await tool.execute({});
 
-      expect(mockClient.get).toHaveBeenCalledWith("/recurring_expenses");
+      expect(mockApi.recurring.list).toHaveBeenCalled();
       expect(result).toBe(JSON.stringify(mockResponse, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.get.mockRejectedValue(
+      mockApi.recurring.list.mockRejectedValue(
         new LunchMoneyAPIError("Unauthorized", 401)
       );
 
@@ -108,7 +106,7 @@ describe("Recurring tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.get.mockRejectedValue(new Error("Network failure"));
+      mockApi.recurring.list.mockRejectedValue(new Error("Network failure"));
 
       const tool = tools.find((t) => t.name === "getRecurringItems")!;
       const result = await tool.execute({});
@@ -117,7 +115,7 @@ describe("Recurring tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.get.mockRejectedValue("something unexpected");
+      mockApi.recurring.list.mockRejectedValue("something unexpected");
 
       const tool = tools.find((t) => t.name === "getRecurringItems")!;
       const result = await tool.execute({});
@@ -140,18 +138,18 @@ describe("Recurring tools", () => {
         },
       };
 
-      mockClient.post.mockResolvedValue(mockResponse);
+      mockApi.recurring.create.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "createRecurringItem")!;
       const args = { payee: "Gym", amount: "50.00", frequency: "monthly", flow: "outflow", start_date: "2024-03-01" };
       const result = await tool.execute(args);
 
-      expect(mockClient.post).toHaveBeenCalledWith("/recurring_expenses", args);
+      expect(mockApi.recurring.create).toHaveBeenCalledWith(args);
       expect(result).toBe(JSON.stringify(mockResponse, null, 2));
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.post.mockRejectedValue(
+      mockApi.recurring.create.mockRejectedValue(
         new LunchMoneyAPIError("Bad Request", 400)
       );
 
@@ -164,7 +162,7 @@ describe("Recurring tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.post.mockRejectedValue(new Error("Connection timeout"));
+      mockApi.recurring.create.mockRejectedValue(new Error("Connection timeout"));
 
       const tool = tools.find((t) => t.name === "createRecurringItem")!;
       const result = await tool.execute({ amount: "50.00" });
@@ -173,7 +171,7 @@ describe("Recurring tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.post.mockRejectedValue(42);
+      mockApi.recurring.create.mockRejectedValue(42);
 
       const tool = tools.find((t) => t.name === "createRecurringItem")!;
       const result = await tool.execute({ amount: "50.00" });
@@ -195,12 +193,12 @@ describe("Recurring tools", () => {
         },
       };
 
-      mockClient.put.mockResolvedValue(mockResponse);
+      mockApi.recurring.update.mockResolvedValue(mockResponse);
 
       const tool = tools.find((t) => t.name === "updateRecurringItem")!;
       const result = await tool.execute({ id: 1, payee: "Netflix Premium", amount: "22.99" });
 
-      expect(mockClient.put).toHaveBeenCalledWith("/recurring_expenses/1", {
+      expect(mockApi.recurring.update).toHaveBeenCalledWith(1, {
         payee: "Netflix Premium",
         amount: "22.99",
       });
@@ -208,7 +206,7 @@ describe("Recurring tools", () => {
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.put.mockRejectedValue(
+      mockApi.recurring.update.mockRejectedValue(
         new LunchMoneyAPIError("Not Found", 404)
       );
 
@@ -221,7 +219,7 @@ describe("Recurring tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.put.mockRejectedValue(new Error("Server error"));
+      mockApi.recurring.update.mockRejectedValue(new Error("Server error"));
 
       const tool = tools.find((t) => t.name === "updateRecurringItem")!;
       const result = await tool.execute({ id: 1, amount: "22.99" });
@@ -230,7 +228,7 @@ describe("Recurring tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.put.mockRejectedValue(undefined);
+      mockApi.recurring.update.mockRejectedValue(undefined);
 
       const tool = tools.find((t) => t.name === "updateRecurringItem")!;
       const result = await tool.execute({ id: 1, amount: "22.99" });
@@ -241,17 +239,17 @@ describe("Recurring tools", () => {
 
   describe("deleteRecurringItem", () => {
     it("returns success message on delete", async () => {
-      mockClient.delete.mockResolvedValue(undefined);
+      mockApi.recurring.delete.mockResolvedValue(undefined);
 
       const tool = tools.find((t) => t.name === "deleteRecurringItem")!;
       const result = await tool.execute({ id: 3 });
 
-      expect(mockClient.delete).toHaveBeenCalledWith("/recurring_expenses/3");
+      expect(mockApi.recurring.delete).toHaveBeenCalledWith(3);
       expect(result).toBe("Recurring item 3 deleted successfully");
     });
 
     it("returns formatted error on LunchMoneyAPIError", async () => {
-      mockClient.delete.mockRejectedValue(
+      mockApi.recurring.delete.mockRejectedValue(
         new LunchMoneyAPIError("Forbidden", 403)
       );
 
@@ -264,7 +262,7 @@ describe("Recurring tools", () => {
     });
 
     it("returns formatted error on generic Error", async () => {
-      mockClient.delete.mockRejectedValue(new Error("Network issue"));
+      mockApi.recurring.delete.mockRejectedValue(new Error("Network issue"));
 
       const tool = tools.find((t) => t.name === "deleteRecurringItem")!;
       const result = await tool.execute({ id: 3 });
@@ -273,7 +271,7 @@ describe("Recurring tools", () => {
     });
 
     it("returns unknown error message for non-Error throws", async () => {
-      mockClient.delete.mockRejectedValue(null);
+      mockApi.recurring.delete.mockRejectedValue(null);
 
       const tool = tools.find((t) => t.name === "deleteRecurringItem")!;
       const result = await tool.execute({ id: 3 });

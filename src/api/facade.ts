@@ -183,7 +183,11 @@ export function createApiFacade(v1: HttpClient, v2: HttpClient): LunchMoneyApi {
         const body = { ...data };
         if (typeof body.status === "string") {
           const mapped = mapV1StatusToV2(body.status as string);
-          if (mapped) body.status = mapped;
+          if (mapped) {
+            body.status = mapped;
+          } else {
+            delete body.status;
+          }
         }
         return v2.put<{ updated: number }>("/transactions", body);
       },

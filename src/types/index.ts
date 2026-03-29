@@ -56,7 +56,7 @@ export interface Transaction {
     account_id: number;
     account_name?: string;
     tags?: Tag[];
-    status?: "cleared" | "uncleared" | "recurring" | "recurring_suggested";
+    status?: "cleared" | "uncleared" | "recurring" | "recurring_suggested" | "delete_pending";
     is_group?: boolean;
     group_id?: number;
     external_id?: string;
@@ -76,7 +76,7 @@ export interface TransactionFilter {
     account_id?: number;
     debit_as_negative?: boolean;
     pending?: boolean;
-    status?: "cleared" | "uncleared" | "recurring" | "recurring_suggested";
+    status?: "cleared" | "uncleared" | "recurring" | "recurring_suggested" | "delete_pending";
     offset?: number;
     limit?: number;
 }

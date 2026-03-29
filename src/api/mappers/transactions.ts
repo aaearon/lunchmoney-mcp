@@ -10,6 +10,8 @@ const v2ToV1Status: Record<string, string> = {
 const v1ToV2Status: Record<string, V2TransactionStatus | undefined> = {
   cleared: "reviewed",
   uncleared: "unreviewed",
+  // Accept v2-native values as pass-through so callers that already
+  // use v2 status strings (e.g. from mapped responses) don't break.
   reviewed: "reviewed",
   unreviewed: "unreviewed",
   // v1-only statuses with no v2 equivalent

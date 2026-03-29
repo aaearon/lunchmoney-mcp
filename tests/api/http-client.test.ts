@@ -49,15 +49,12 @@ describe("HttpClient", () => {
 
   beforeEach(() => {
     mockFetch.mockReset();
+    vi.stubGlobal("fetch", mockFetch);
     client = new HttpClient({
       baseUrl: "https://dev.lunchmoney.app/v1",
       accessToken: "test-token",
       parseError: v1ErrorParser,
     });
-  });
-
-  beforeEach(() => {
-    vi.stubGlobal("fetch", mockFetch);
   });
 
   afterEach(() => {

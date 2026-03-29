@@ -1,5 +1,6 @@
 import type { Transaction } from "../../types/index.js";
 import type { V2Transaction, V2TransactionStatus } from "../../types/v2.js";
+import { LunchMoneyAPIError } from "../../utils/errors.js";
 
 const v2ToV1Status: Record<string, string> = {
   reviewed: "cleared",
@@ -83,7 +84,7 @@ export function mapV1FilterParamsToV2(
   if (typeof status === "string") {
     const v2Status = mapV1StatusToV2(status);
     if (!v2Status) {
-      throw new Error(`Status filter '${status}' is not supported by the v2 API`);
+      throw new LunchMoneyAPIError(`Status filter '${status}' is not supported by the v2 API`);
     }
     result.status = v2Status;
   }

@@ -6,16 +6,18 @@
  *
  * v2 domains: user, tags, plaid, assets (manual_accounts), categories,
  *             transactions
- * Mixed v1+v2: budgets (GET/PUT on v2, POST/DELETE on v1),
+ * Mixed v1+v2: budgets (PUT on v2, GET/POST/DELETE on v1),
  *              recurring (GET on v2, create/update/delete on v1)
  */
 import type { HttpClient } from "./http-client.js";
-import type { V2User, V2Tag, V2TagsResponse, V2Transaction, V2TransactionsResponse, ManualAccount, ManualAccountsResponse, V2Category, V2CategoriesResponse, V2RecurringItemsResponse } from "../types/v2.js";
+import { LunchMoneyAPIError } from "../utils/errors.js";
+import type { V2User, V2Tag, V2TagsResponse, V2Transaction, V2TransactionsResponse, ManualAccount, ManualAccountsResponse, V2Category, V2CategoriesResponse, V2RecurringItemsResponse, V2PlaidAccountsResponse } from "../types/v2.js";
 import { mapManualAccountToAsset, mapAssetRequestToManualAccountRequest } from "./mappers/assets.js";
 import { mapV2CategoryToCategory, extractCategoryGroups, mapCategoryRequestToV2, mapCategoryGroupRequestToV2, mapAddToGroupRequestToV2Update } from "./mappers/categories.js";
 import { mapV2TransactionToMCP, mapMCPRequestToV2, mapV1FilterParamsToV2, mapV1StatusToV2 } from "./mappers/transactions.js";
 import { mapV2RecurringItemToV1 } from "./mappers/recurring.js";
 import { mapV2TagToTag } from "./mappers/tags.js";
+import { mapV2PlaidAccountToMCP } from "./mappers/plaid.js";
 import type {
   User,
   Category,
@@ -171,7 +173,10 @@ export function createApiFacade(v1: HttpClient, v2: HttpClient): LunchMoneyApi {
         const body = mapMCPRequestToV2(data);
         const result = await v2.post<{ transactions: V2Transaction[] }>("/transactions", { transactions: [body] });
         const v2Tx = result.transactions?.[0];
-        return { transaction: v2Tx ? mapV2TransactionToMCP(v2Tx) : (body as unknown as Transaction) };
+        if (!v2Tx) {
+          throw new LunchMoneyAPIError("Transaction creation succeeded but no transaction was returned");
+        }
+        return { transaction: mapV2TransactionToMCP(v2Tx) };
       },
       update: async (id, data) => {
         const body = mapMCPRequestToV2(data);
@@ -212,7 +217,7 @@ export function createApiFacade(v1: HttpClient, v2: HttpClient): LunchMoneyApi {
       delete: (id) => v1.delete(`/recurring_expenses/${id}`),                                             // v1: no DELETE in v2
     },
     budgets: {
-      list: () => v2.get<BudgetsResponse>("/budgets"),
+      list: () => v1.get<BudgetsResponse>("/budgets"),
       create: (data) => v1.post<{ budget: Budget }>("/budgets", data),        // v1: no POST in v2
       update: (id, data) => v2.put<{ budget: Budget }>(`/budgets/${id}`, data),
       delete: (id) => v1.delete(`/budgets/${id}`),                             // v1: no DELETE in v2
@@ -235,7 +240,10 @@ export function createApiFacade(v1: HttpClient, v2: HttpClient): LunchMoneyApi {
       delete: (id) => v2.delete(`/manual_accounts/${id}`),
     },
     plaid: {
-      list: () => v2.get<PlaidAccountsResponse>("/plaid_accounts"),
+      list: async () => {
+        const response = await v2.get<V2PlaidAccountsResponse>("/plaid_accounts");
+        return { plaid_accounts: response.plaid_accounts.map(mapV2PlaidAccountToMCP) };
+      },
       fetch: async () => {
         await v2.post("/plaid_accounts/fetch");
         return true;

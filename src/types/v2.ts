@@ -122,7 +122,7 @@ export interface V2ChildCategory {
   archived: boolean;
   archived_at: string | null;
   order: number | null;
-  collapsed: false;
+  collapsed: boolean;
 }
 
 export interface V2Category {

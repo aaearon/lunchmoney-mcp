@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { LunchMoneyAPIError } from "../../../src/utils/errors.js";
 import {
   mapV2StatusToV1,
   mapV1StatusToV2,
@@ -170,10 +171,12 @@ describe("Transaction mappers", () => {
       expect(result).toEqual({ start_date: "2024-01-01", limit: 100 });
     });
 
-    it("throws on unmappable status filter", () => {
+    it("throws LunchMoneyAPIError on unmappable status filter", () => {
+      expect(() => mapV1FilterParamsToV2({ status: "recurring" })).toThrow(LunchMoneyAPIError);
       expect(() => mapV1FilterParamsToV2({ status: "recurring" })).toThrow(
         "Status filter 'recurring' is not supported by the v2 API"
       );
+      expect(() => mapV1FilterParamsToV2({ status: "recurring_suggested" })).toThrow(LunchMoneyAPIError);
       expect(() => mapV1FilterParamsToV2({ status: "recurring_suggested" })).toThrow(
         "Status filter 'recurring_suggested' is not supported by the v2 API"
       );

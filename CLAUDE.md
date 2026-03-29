@@ -34,7 +34,7 @@ This is an MCP (Model Context Protocol) server for the Lunch Money personal fina
 | Domain | v2 | v1 holdouts |
 |--------|-----|-------------|
 | User, Tags, Plaid, Assets, Categories, Transactions | All operations | None |
-| Budgets | GET, PUT | POST, DELETE |
+| Budgets | PUT | GET, POST, DELETE |
 | Recurring Items | GET | Create, Update, Delete |
 
 ### Tool Modules
